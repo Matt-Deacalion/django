@@ -388,3 +388,46 @@ class ManyToManyTests(TestCase):
         self.assertQuerysetEqual(self.a4.publications.all(), [])
         self.assertQuerysetEqual(self.p2.article_set.all(),
                                  ['<Article: NASA finds intelligent life on Earth>'])
+
+    def test_toggle(self):
+        # toggle off
+        self.a4.publications.toggle(self.p2)
+        self.assertQuerysetEqual(self.p2.article_set.all(),
+            [
+                '<Article: NASA finds intelligent life on Earth>',
+                '<Article: NASA uses Python>',
+            ])
+        self.assertQuerysetEqual(self.a4.publications.all(), [])
+
+        # toggle off from the other model
+        self.p2.article_set.toggle(self.a3)
+        self.assertQuerysetEqual(self.p2.article_set.all(),
+            [
+                '<Article: NASA uses Python>',
+            ])
+        self.assertQuerysetEqual(self.a3.publications.all(), [])
+
+        # toggle on
+        self.a4.publications.toggle(self.p1)
+        self.assertQuerysetEqual(self.p1.article_set.all(),
+            [
+                '<Article: Django lets you build Web apps easily>',
+                '<Article: NASA uses Python>',
+                '<Article: Oxygen-free diet works wonders>',
+            ])
+        self.assertQuerysetEqual(self.a4.publications.all(),
+            [
+                '<Publication: The Python Journal>',
+            ])
+
+        # toggle on from the other model
+        self.p3.article_set.toggle(self.a3)
+        self.assertQuerysetEqual(self.p3.article_set.all(),
+            [
+                '<Article: NASA finds intelligent life on Earth>',
+                '<Article: NASA uses Python>',
+            ])
+        self.assertQuerysetEqual(self.a3.publications.all(),
+            [
+                '<Publication: Science Weekly>',
+            ])

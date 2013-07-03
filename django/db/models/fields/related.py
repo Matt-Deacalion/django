@@ -559,7 +559,7 @@ def create_many_related_manager(superclass, rel):
                     self.prefetch_cache_name)
 
         # If the ManyToMany relation has an intermediary model,
-        # the add and remove methods do not exist.
+        # the add, remove and toggle methods do not exist.
         if rel.through._meta.auto_created:
             def add(self, *objs):
                 self._add_items(self.source_field_name, self.target_field_name, *objs)
@@ -576,6 +576,20 @@ def create_many_related_manager(superclass, rel):
                 if self.symmetrical:
                     self._remove_items(self.target_field_name, self.source_field_name, *objs)
             remove.alters_data = True
+
+            def toggle(self, *objs):
+                present = self.model.objects.filter(**self.core_filters)
+
+                for obj in objs:
+                    if not isinstance(obj, self.model):
+                        raise TypeError("'%s' instance expected, got %r" %
+                                        (self.model._meta.object_name, obj))
+
+                    if obj in present:
+                        self.remove(obj)
+                    else:
+                        self.add(obj)
+            toggle.alters_data = True
 
         def clear(self):
             self._clear_items(self.source_field_name)
