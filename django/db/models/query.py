@@ -3,6 +3,7 @@ The main QuerySet implementation. This provides the public API for the ORM.
 """
 
 import copy
+import inspect
 import itertools
 import sys
 
@@ -10,7 +11,7 @@ from django.conf import settings
 from django.core import exceptions
 from django.db import connections, router, transaction, DatabaseError
 from django.db.models.constants import LOOKUP_SEP
-from django.db.models.fields import AutoField
+from django.db.models.fields import AutoField, Empty
 from django.db.models.query_utils import (Q, select_related_descend,
     deferred_class_factory, InvalidQuery)
 from django.db.models.deletion import Collector
@@ -30,10 +31,19 @@ REPR_OUTPUT_SIZE = 20
 EmptyResultSet = sql.EmptyResultSet
 
 
+def _pickle_queryset(class_bases, class_dict):
+    new = Empty()
+    new.__class__ = type(class_bases[0].__name__, class_bases, class_dict)
+    return new
+
+
 class QuerySet(object):
     """
     Represents a lazy database lookup for a set of objects.
     """
+
+    base_manager_class = None
+
     def __init__(self, model=None, query=None, using=None):
         self.model = model
         self._db = using
@@ -44,6 +54,52 @@ class QuerySet(object):
         self._prefetch_related_lookups = []
         self._prefetch_done = False
         self._known_related_objects = {}        # {rel_field, {pk: rel_obj}}
+
+    @classmethod
+    def _get_manager_methods(cls, base_class):
+        def create_method(name, method):
+            def manager_method(self, *args, **kwargs):
+                return getattr(self.get_queryset(), name)(*args, **kwargs)
+            manager_method.__name__ = method.__name__
+            manager_method.__doc__ = method.__doc__
+            return manager_method
+
+        new_methods = {}
+        predicate = inspect.isfunction
+        if not six.PY3:
+            # Refs http://bugs.python.org/issue1785
+            predicate = inspect.ismethod
+        for name, method in inspect.getmembers(cls, predicate=predicate):
+            # Only copy missing methods.
+            if hasattr(base_class, name):
+                continue
+            # Only copy public methods or methods with the attribute `manager=True`.
+            should_copy = getattr(method, 'manager', None)
+            if should_copy is False or should_copy is None and name.startswith('_'):
+                continue
+            # Copy the method onto the manager.
+            new_methods[name] = create_method(name, method)
+        return new_methods
+
+    @classmethod
+    def _get_manager_class(cls, base_class=None):
+        if base_class is None:
+            base_class = cls.base_manager_class
+        if base_class is None:
+            from django.db.models.manager import Manager as base_class
+        new_methods = cls._get_manager_methods(base_class)
+        manager_cls = type(cls.__name__ + 'Manager', (base_class,), new_methods)
+        manager_cls._queryset_class = cls
+        return manager_cls
+
+    def as_manager(cls):
+        """
+        Creates and instantiate a manager class for this QuerySet class.
+        """
+        manager_cls = cls._get_manager_class()
+        return manager_cls()
+    as_manager.manager = False
+    as_manager = classmethod(as_manager)
 
     ########################
     # PYTHON MAGIC METHODS #
@@ -69,6 +125,19 @@ class QuerySet(object):
         self._fetch_all()
         obj_dict = self.__dict__.copy()
         return obj_dict
+
+    def __reduce__(self):
+        if hasattr(self, '_specialized_queryset_class'):
+            class_bases = (
+                self._specialized_queryset_class,
+                self._base_queryset_class,
+            )
+            class_dict = {
+                '_specialized_queryset_class': self._specialized_queryset_class,
+                '_base_queryset_class': self._base_queryset_class,
+            }
+            return _pickle_queryset, (class_bases, class_dict), self.__getstate__()
+        return super(QuerySet, self).__reduce__()
 
     def __repr__(self):
         data = list(self[:REPR_OUTPUT_SIZE + 1])
@@ -523,6 +592,7 @@ class QuerySet(object):
         # Clear the result cache, in case this QuerySet gets reused.
         self._result_cache = None
     delete.alters_data = True
+    delete.manager = False
 
     def _raw_delete(self, using):
         """
@@ -562,6 +632,7 @@ class QuerySet(object):
         self._result_cache = None
         return query.get_compiler(self.db).execute_sql(None)
     _update.alters_data = True
+    _update.manager = True
 
     def exists(self):
         if self._result_cache is None:
@@ -881,6 +952,15 @@ class QuerySet(object):
     def _clone(self, klass=None, setup=False, **kwargs):
         if klass is None:
             klass = self.__class__
+        elif not issubclass(self.__class__, klass):
+            base_queryset_class = getattr(self, '_base_queryset_class', self.__class__)
+            class_bases = (klass, base_queryset_class)
+            class_dict = {
+                '_base_queryset_class': base_queryset_class,
+                '_specialized_queryset_class': klass,
+            }
+            klass = type(klass.__name__, class_bases, class_dict)
+
         query = self.query.clone()
         if self._sticky_filter:
             query.filter_is_sticky = True
