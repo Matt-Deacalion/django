@@ -388,3 +388,38 @@ class ManyToManyTests(TestCase):
         self.assertQuerysetEqual(self.a4.publications.all(), [])
         self.assertQuerysetEqual(self.p2.article_set.all(),
                                  ['<Article: NASA finds intelligent life on Earth>'])
+
+    def test_toggle(self):
+        # toggle off
+        self.assertQuerysetEqual(self.p2.article_set.all(),
+            [
+                '<Article: NASA finds intelligent life on Earth>',
+                '<Article: NASA uses Python>',
+                '<Article: Oxygen-free diet works wonders>',
+            ])
+        self.a4.publications.toggle(self.p2)
+        self.assertQuerysetEqual(self.p2.article_set.all(),
+            [
+                '<Article: NASA finds intelligent life on Earth>',
+                '<Article: NASA uses Python>',
+            ])
+        self.assertQuerysetEqual(self.a4.publications.all(), [])
+
+        self.p2.article_set.toggle(self.a3)
+        self.assertQuerysetEqual(self.p2.article_set.all(),
+            [
+                '<Article: NASA uses Python>',
+            ])
+        self.assertQuerysetEqual(self.a3.publications.all(), [])
+
+        # toggle on
+        a5 = Article(headline='NASA finds intelligent life on Mars')
+        a5.save()
+        self.p2.article_set.toggle(a5)
+        self.assertQuerysetEqual(self.p2.article_set.all(),
+            [
+                '<Article: NASA finds intelligent life on Mars>',
+                '<Article: NASA uses Python>',
+            ])
+        self.assertQuerysetEqual(a5.publications.all(),
+                                 ['<Publication: Science News>'])
