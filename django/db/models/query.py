@@ -65,17 +65,15 @@ class QuerySet(object):
             return manager_method
 
         new_methods = {}
-        predicate = inspect.isfunction
-        if not six.PY3:
-            # Refs http://bugs.python.org/issue1785
-            predicate = inspect.ismethod
+        # Refs http://bugs.python.org/issue1785.
+        predicate = inspect.isfunction if six.PY3 else inspect.ismethod
         for name, method in inspect.getmembers(cls, predicate=predicate):
             # Only copy missing methods.
             if hasattr(base_class, name):
                 continue
             # Only copy public methods or methods with the attribute `manager=True`.
             should_copy = getattr(method, 'manager', None)
-            if should_copy is False or should_copy is None and name.startswith('_'):
+            if should_copy is False or (should_copy is None and name.startswith('_')):
                 continue
             # Copy the method onto the manager.
             new_methods[name] = create_method(name, method)

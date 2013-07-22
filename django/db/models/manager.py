@@ -56,13 +56,13 @@ class RenameManagerMethods(RenameMethodsBase):
     )
 
 
-class _Manager(six.with_metaclass(RenameManagerMethods)):
+class BaseManager(six.with_metaclass(RenameManagerMethods)):
     # Tracks each time a Manager instance is created. Used to retain order.
     creation_counter = 0
     _queryset_class = QuerySet
 
     def __init__(self):
-        super(_Manager, self).__init__()
+        super(BaseManager, self).__init__()
         self._set_creation_counter()
         self.model = None
         self._inherited = False
@@ -93,8 +93,8 @@ class _Manager(six.with_metaclass(RenameManagerMethods)):
         Sets the creation counter value for this instance and increments the
         class-level copy.
         """
-        self.creation_counter = _Manager.creation_counter
-        _Manager.creation_counter += 1
+        self.creation_counter = BaseManager.creation_counter
+        BaseManager.creation_counter += 1
 
     def _copy_to_model(self, model):
         """
@@ -135,7 +135,7 @@ class _Manager(six.with_metaclass(RenameManagerMethods)):
     def raw(self, raw_query, params=None, *args, **kwargs):
         return RawQuerySet(raw_query=raw_query, model=self.model, params=params, using=self._db, *args, **kwargs)
 
-Manager = QuerySet._get_manager_class(base_class=_Manager)
+Manager = QuerySet._get_manager_class(base_class=BaseManager)
 
 
 class ManagerDescriptor(object):

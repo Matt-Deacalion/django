@@ -6,7 +6,7 @@ import threading
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from django.db import connections, DEFAULT_DB_ALIAS
 from django.db.models.fields import Field, FieldDoesNotExist
-from django.db.models.manager import _Manager
+from django.db.models.manager import BaseManager
 from django.db.models.query import QuerySet, EmptyQuerySet, ValuesListQuerySet, MAX_GET_RESULTS
 from django.test import TestCase, TransactionTestCase, skipIfDBFeature, skipUnlessDBFeature
 from django.utils import six
@@ -786,6 +786,6 @@ class ManagerTest(TestCase):
         `Manager` will need to be added to `ManagerTest.QUERYSET_PROXY_METHODS`.
         """
         self.assertEqual(
-            sorted(QuerySet._get_manager_methods(_Manager).keys()),
+            sorted(QuerySet._get_manager_methods(BaseManager).keys()),
             sorted(self.QUERYSET_PROXY_METHODS),
         )
