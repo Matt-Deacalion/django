@@ -786,6 +786,6 @@ class ManagerTest(TestCase):
         `Manager` will need to be added to `ManagerTest.QUERYSET_PROXY_METHODS`.
         """
         self.assertEqual(
-            sorted(QuerySet._get_manager_methods(BaseManager).keys()),
+            sorted(BaseManager._get_queryset_methods(QuerySet).keys()),
             sorted(self.QUERYSET_PROXY_METHODS),
         )

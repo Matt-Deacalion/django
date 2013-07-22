@@ -1,4 +1,6 @@
 import copy
+import inspect
+
 from django.db import router
 from django.db.models.query import QuerySet, insert_query, RawQuerySet
 from django.db.models import signals
@@ -59,7 +61,6 @@ class RenameManagerMethods(RenameMethodsBase):
 class BaseManager(six.with_metaclass(RenameManagerMethods)):
     # Tracks each time a Manager instance is created. Used to retain order.
     creation_counter = 0
-    _queryset_class = QuerySet
 
     def __init__(self):
         super(BaseManager, self).__init__()
@@ -67,6 +68,42 @@ class BaseManager(six.with_metaclass(RenameManagerMethods)):
         self.model = None
         self._inherited = False
         self._db = None
+
+    @classmethod
+    def _get_queryset_methods(cls, queryset_class):
+        def create_method(name, method):
+            def manager_method(self, *args, **kwargs):
+                return getattr(self.get_queryset(), name)(*args, **kwargs)
+            manager_method.__name__ = method.__name__
+            manager_method.__doc__ = method.__doc__
+            return manager_method
+
+        new_methods = {}
+        # Refs http://bugs.python.org/issue1785.
+        predicate = inspect.isfunction if six.PY3 else inspect.ismethod
+        for name, method in inspect.getmembers(queryset_class, predicate=predicate):
+            # Only copy missing methods.
+            if hasattr(cls, name):
+                continue
+            # Only copy public methods or methods with the attribute `manager=True`.
+            should_copy = getattr(method, 'manager', None)
+            if should_copy is False or (should_copy is None and name.startswith('_')):
+                continue
+            # Copy the method onto the manager.
+            new_methods[name] = create_method(name, method)
+        return new_methods
+
+    @classmethod
+    def create_from_queryset(cls, queryset_class):
+        class_dict = {
+            '_queryset_class': queryset_class,
+        }
+        class_dict.update(cls._get_queryset_methods(queryset_class))
+        return type(cls.__name__, (cls,), class_dict)
+
+    @classmethod
+    def from_queryset(cls, queryset_class):
+        return cls.create_from_queryset(queryset_class)()
 
     def contribute_to_class(self, model, name):
         # TODO: Use weakref because of possible memory leak / circular reference.
@@ -135,7 +172,7 @@ class BaseManager(six.with_metaclass(RenameManagerMethods)):
     def raw(self, raw_query, params=None, *args, **kwargs):
         return RawQuerySet(raw_query=raw_query, model=self.model, params=params, using=self._db, *args, **kwargs)
 
-Manager = QuerySet._get_manager_class(base_class=BaseManager)
+Manager = BaseManager.create_from_queryset(QuerySet)
 
 
 class ManagerDescriptor(object):

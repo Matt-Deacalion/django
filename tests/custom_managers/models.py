@@ -12,6 +12,7 @@ returns.
 from __future__ import unicode_literals
 
 from django.db import models
+from django.db.models import Manager
 from django.utils.encoding import python_2_unicode_compatible
 
 # An example of a custom manager called "objects".
@@ -57,9 +58,6 @@ class CustomManager(models.Manager):
     def manager_only(self):
         return self.all()
 
-class CustomQuerySetCustomManager(CustomQuerySet):
-    base_manager_class = CustomManager
-
 @python_2_unicode_compatible
 class Person(models.Model):
     first_name = models.CharField(max_length=30)
@@ -67,8 +65,8 @@ class Person(models.Model):
     fun = models.BooleanField()
     objects = PersonManager()
 
-    custom_queryset_default_manager = CustomQuerySet.as_manager()
-    custom_queryset_custom_manager = CustomQuerySetCustomManager.as_manager()
+    custom_queryset_default_manager = Manager.from_queryset(CustomQuerySet)
+    custom_queryset_custom_manager = CustomManager.from_queryset(CustomQuerySet)
 
     def __str__(self):
         return "%s %s" % (self.first_name, self.last_name)
