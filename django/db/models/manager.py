@@ -162,8 +162,11 @@ class BaseManager(six.with_metaclass(RenameManagerMethods)):
         return self._queryset_class(self.model, using=self._db)
 
     def all(self):
-        # This method can't be proxied to QuerySet, as prefetch_related is lost
-        # on clone().
+        # This is the only method we don't proxy through to the QuerySet. This
+        # is because QuerySet's `all()` works by creating a 'copy' of the
+        # current queryset and in making said copy, all `prefetch_related`
+        # lookups are lost. So instead, to preserve these lookups
+        # we simply return the current queryset.
         return self.get_queryset()
 
     def _insert(self, objs, fields, **kwargs):
