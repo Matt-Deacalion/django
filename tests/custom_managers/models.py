@@ -43,11 +43,11 @@ class CustomQuerySet(models.QuerySet):
 
     def optout_public_method(self, *args, **kwargs):
         return self.all()
-    optout_public_method.manager = False
+    optout_public_method.queryset_only = True
 
     def _optin_private_method(self, *args, **kwargs):
         return self.all()
-    _optin_private_method.manager = True
+    _optin_private_method.queryset_only = False
 
 class CustomManager(models.Manager):
     def filter(self, *args, **kwargs):

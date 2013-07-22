@@ -85,9 +85,9 @@ class BaseManager(six.with_metaclass(RenameManagerMethods)):
             # Only copy missing methods.
             if hasattr(cls, name):
                 continue
-            # Only copy public methods or methods with the attribute `manager=True`.
-            should_copy = getattr(method, 'manager', None)
-            if should_copy is False or (should_copy is None and name.startswith('_')):
+            # Only copy public methods or methods with the attribute `queryset_only=False`.
+            queryset_only = getattr(method, 'queryset_only', None)
+            if queryset_only is True or (queryset_only is None and name.startswith('_')):
                 continue
             # Copy the method onto the manager.
             new_methods[name] = create_method(name, method)
